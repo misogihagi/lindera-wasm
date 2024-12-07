@@ -1,0 +1,135 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            wasm-target: nodejs
+            wasm-runner: --node
+        toolchain: [stable]
+        features: [cjk]
+    runs-on: ${{ matrix.platform.runner }}
+
+    steps:
+      - name: Run checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          target: ${{ matrix.platform.target }}
+          components: rustfmt, clippy
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+  
+      - name: Run test with node.js
+        run: wasm-pack test ${{ matrix.platform.wasm-runner }}
+
+  release:
+    name: Release
+    strategy:
+      matrix:
+        platform:
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            wasm-target: nodejs
+            wasm-runner: --node
+        toolchain: [stable]
+        features: [cjk]
+    runs-on: ${{ matrix.platform.runner }}
+    needs: [test]
+    permissions:
+      # Use to sign the release artifacts
+      id-token: write
+      # Used to upload release artifacts
+      contents: write
+      # Used to generate artifact attestation
+      attestations: write
+    steps:
+      - name: Run checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          target: ${{ matrix.platform.target }}
+          components: rustfmt, clippy
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Compile
+        run: wasm-pack build --release --features=${{ matrix.features }} --target=${{ matrix.platform.wasm-target }}
+
+      - name: Publish to npm
+        run: wasm-pack publish --access public --target ${{ matrix.platform.wasm-target }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  publish-crates:
+    name: Publish crate
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        toolchain: [stable]
+    needs: [release]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+          components: rustfmt, clippy
+
+      - name: Publish lindera-wasm
+        run: |
+          LINDERA_WASM_VERSION=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name=="lindera-wasm") | .version')
+          LINDERA_WASM_VERSIONS=$(curl -s -XGET https://crates.io/api/v1/crates/lindera-wasm | jq -r 'select(.versions != null) | .versions[].num')
+          if echo ${LINDERA_WASM_VERSIONS} | grep ${LINDERA_WASM_VERSION} >/dev/null; then
+            echo "lindera-wasm ${LINDERA_WASM_VERSION} has already published"
+          else
+            cargo publish --token ${{ secrets.CRATES_TOKEN }}
+          fi
