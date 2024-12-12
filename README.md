@@ -19,5 +19,17 @@ WebAssembly of Lindera
 ## Build project
 
 ```shell
+% wasm-pack build --release --features=cjk --target=bundler
+```
 
+## Build example web application
+
+```shell
+% cd example && npm install && npm run build && cp index.html dist/index.html
+```
+
+## Run example web application
+
+```shell
+% cd example && npm run start
 ```
