@@ -16,13 +16,19 @@ test:
 	wasm-pack test --node
 
 build:
-	wasm-pack build --release --target=nodejs --features=cjk
+	wasm-pack build --release --features=cjk --target=bundler
 
 publish:
-	wasm-pack publish --access=public --target=nodejs
+	wasm-pack publish --access=public --target=bundler
 
-serve:
-	python3 -m http.server
+tag_example:
+	jq '.version = "$(VERSION)"' ./example/package.json > ./example/temp.json && mv ./example/temp.json ./example/package.json
+
+build_example: tag_example
+	cd example && npm install && npm run build && cp index.html dist/index.html
+
+run_example:
+	cd example && npm run start
 
 tag:
 	git tag v$(VERSION)
