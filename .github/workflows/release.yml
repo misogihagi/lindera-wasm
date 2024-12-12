@@ -58,6 +58,7 @@ jobs:
         run: cargo check --features "${{ matrix.features }}"
 
   test:
+    name: Test
     strategy:
       matrix:
         platform:
