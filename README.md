@@ -2,7 +2,7 @@
 
 WebAssembly of Lindera
 
-![スクリーンショット 2024-12-12 214450](https://github.com/user-attachments/assets/57ef1d6e-679a-41f4-8274-28f7eeeaed67)
+![Screenshot 2024-12-25 143434](https://github.com/user-attachments/assets/a463bf2e-70be-492a-b13c-e5aff6581fc7)
 
 ## Install project dependencies
 
