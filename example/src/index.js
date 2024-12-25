@@ -15,11 +15,18 @@ try {
     builder.set_mode("normal");
 
     // Append character filters
-    builder.append_character_filter("unicode_normalize", {"kind": "nfkc"});
+    builder.append_character_filter("unicode_normalize", { "kind": "nfkc" });
 
     // Append token filters
     builder.append_token_filter("lowercase");
-    builder.append_token_filter("japanese_number", {"tags": ["名詞,数"]});
+    builder.append_token_filter("japanese_compound_word", {
+        "kind": "ipadic",
+        "tags": [
+            "名詞,数"
+        ],
+        "new_tag": "名詞,数"
+    });
+    builder.append_token_filter("japanese_number", { "tags": ["名詞,数"] });
 
     // Build the Tokenizer instance
     tokenizer = builder.build();
