@@ -1,22 +1,15 @@
-use once_cell::sync::Lazy;
+use std::path::Path;
+use std::str::FromStr;
+
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
 
-use lindera::dictionary::{load_dictionary_from_kind, DictionaryKind};
+use lindera::dictionary::DictionaryKind;
 use lindera::mode::Mode;
-use lindera::segmenter::Segmenter;
 use lindera::token::Token;
-use lindera::tokenizer::Tokenizer;
-
-static TOKENIZER: Lazy<Tokenizer> = Lazy::new(|| {
-    let dictionary = load_dictionary_from_kind(DictionaryKind::IPADIC).unwrap();
-    let segmenter = Segmenter::new(
-        Mode::Normal,
-        dictionary,
-        None, // no user dictionary is provided
-    );
-    Tokenizer::new(segmenter)
-});
+use lindera::tokenizer::{
+    Tokenizer as LinderaTokenizer, TokenizerBuilder as LinderaTokenizerBuilder,
+};
 
 fn token_to_json(token: &mut Token) -> Value {
     serde_json::json!({
@@ -29,16 +22,105 @@ fn token_to_json(token: &mut Token) -> Value {
 }
 
 #[wasm_bindgen]
-pub fn tokenize(input_text: &str) -> JsValue {
-    let mut tokens = TOKENIZER.tokenize(input_text).unwrap();
+pub struct TokenizerBuilder {
+    inner: LinderaTokenizerBuilder,
+}
 
-    serde_wasm_bindgen::to_value(
-        &tokens
-            .iter_mut()
-            .map(|token| token_to_json(token))
-            .collect::<Vec<_>>(),
-    )
-    .unwrap()
+#[wasm_bindgen]
+impl TokenizerBuilder {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Result<Self, JsValue> {
+        let inner =
+            LinderaTokenizerBuilder::new().map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        Ok(Self { inner })
+    }
+
+    pub fn build(self) -> Result<Tokenizer, JsValue> {
+        let inner = self
+            .inner
+            .build()
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        Ok(Tokenizer { inner })
+    }
+
+    pub fn set_mode(&mut self, mode: &str) -> Result<(), JsValue> {
+        let m = Mode::from_str(mode).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        self.inner.set_segmenter_mode(&m);
+
+        Ok(())
+    }
+
+    pub fn set_dictionary_kind(&mut self, kind: &str) -> Result<(), JsValue> {
+        let k = DictionaryKind::from_str(kind).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        self.inner.set_segmenter_dictionary_kind(&k);
+
+        Ok(())
+    }
+
+    pub fn set_dictionary_path(&mut self, path: &str) -> Result<(), JsValue> {
+        self.inner.set_segmenter_dictionary_path(Path::new(path));
+
+        Ok(())
+    }
+
+    pub fn set_user_dictionary_path(&mut self, path: &str) -> Result<(), JsValue> {
+        self.inner
+            .set_segmenter_user_dictionary_path(Path::new(path));
+
+        Ok(())
+    }
+
+    pub fn set_user_dictionary_kind(&mut self, kind: &str) -> Result<(), JsValue> {
+        let k = DictionaryKind::from_str(kind).map_err(|e| JsValue::from_str(&e.to_string()))?;
+        self.inner.set_segmenter_user_dictionary_kind(&k);
+
+        Ok(())
+    }
+
+    pub fn append_character_filter(&mut self, name: &str, args: JsValue) -> Result<(), JsValue> {
+        let a = serde_wasm_bindgen::from_value::<Value>(args)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        self.inner.append_character_filter(name, &a);
+
+        Ok(())
+    }
+
+    pub fn append_token_filter(&mut self, name: &str, args: JsValue) -> Result<(), JsValue> {
+        let a = serde_wasm_bindgen::from_value::<Value>(args)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        self.inner.append_token_filter(name, &a);
+
+        Ok(())
+    }
+}
+
+#[wasm_bindgen]
+pub struct Tokenizer {
+    inner: LinderaTokenizer,
+}
+
+#[wasm_bindgen]
+impl Tokenizer {
+    pub fn tokenize(&self, input_text: &str) -> Result<JsValue, JsValue> {
+        let mut tokens = self
+            .inner
+            .tokenize(input_text)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let js_value = serde_wasm_bindgen::to_value(
+            &tokens
+                .iter_mut()
+                .map(|token| token_to_json(token))
+                .collect::<Vec<_>>(),
+        )
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        Ok(js_value)
+    }
 }
 
 #[cfg(test)]
@@ -49,9 +131,16 @@ mod tests {
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
     fn test_tokenize() {
-        use super::*;
+        use crate::TokenizerBuilder;
         use serde_json::Value;
-        let t = tokenize("関西国際空港限定トートバッグ");
+
+        let mut builder = TokenizerBuilder::new().unwrap();
+        builder.set_mode("normal").unwrap();
+        builder.set_dictionary_kind("ipadic").unwrap();
+
+        let tokenizer = builder.build().unwrap();
+
+        let t = tokenizer.tokenize("関西国際空港限定トートバッグ").unwrap();
         let tokens: Vec<Value> = serde_wasm_bindgen::from_value(t).unwrap();
 
         assert_eq!(tokens.len(), 3);
