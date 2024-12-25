@@ -135,8 +135,8 @@ mod tests {
         use serde_json::Value;
 
         let mut builder = TokenizerBuilder::new().unwrap();
-        builder = builder.set_mode("normal").unwrap();
-        builder = builder.set_dictionary_kind("ipadic").unwrap();
+        builder.set_mode("normal").unwrap();
+        builder.set_dictionary_kind("ipadic").unwrap();
 
         let tokenizer = builder.build().unwrap();
 
