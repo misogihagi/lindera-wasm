@@ -96,7 +96,7 @@ jobs:
         toolchain: [stable]
         features: [cjk]
     runs-on: ${{ matrix.platform.runner }}
-    needs: [test]
+    needs: [fmt, check, test]
     permissions:
       # Use to sign the release artifacts
       id-token: write
