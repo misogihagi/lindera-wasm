@@ -45,56 +45,56 @@ impl TokenizerBuilder {
         Ok(Tokenizer { inner })
     }
 
-    pub fn set_mode(mut self, mode: &str) -> Result<Self, JsValue> {
+    pub fn set_mode(&mut self, mode: &str) -> Result<(), JsValue> {
         let m = Mode::from_str(mode).map_err(|e| JsValue::from_str(&e.to_string()))?;
         self.inner.set_segmenter_mode(&m);
 
-        Ok(self)
+        Ok(())
     }
 
-    pub fn set_dictionary_kind(mut self, kind: &str) -> Result<Self, JsValue> {
+    pub fn set_dictionary_kind(&mut self, kind: &str) -> Result<(), JsValue> {
         let k = DictionaryKind::from_str(kind).map_err(|e| JsValue::from_str(&e.to_string()))?;
         self.inner.set_segmenter_dictionary_kind(&k);
 
-        Ok(self)
+        Ok(())
     }
 
-    pub fn set_dictionary_path(mut self, path: &str) -> Result<Self, JsValue> {
+    pub fn set_dictionary_path(&mut self, path: &str) -> Result<(), JsValue> {
         self.inner.set_segmenter_dictionary_path(Path::new(path));
 
-        Ok(self)
+        Ok(())
     }
 
-    pub fn set_user_dictionary_path(mut self, path: &str) -> Result<Self, JsValue> {
+    pub fn set_user_dictionary_path(&mut self, path: &str) -> Result<(), JsValue> {
         self.inner
             .set_segmenter_user_dictionary_path(Path::new(path));
 
-        Ok(self)
+        Ok(())
     }
 
-    pub fn set_user_dictionary_kind(mut self, kind: &str) -> Result<Self, JsValue> {
+    pub fn set_user_dictionary_kind(&mut self, kind: &str) -> Result<(), JsValue> {
         let k = DictionaryKind::from_str(kind).map_err(|e| JsValue::from_str(&e.to_string()))?;
         self.inner.set_segmenter_user_dictionary_kind(&k);
 
-        Ok(self)
+        Ok(())
     }
 
-    pub fn append_character_filter(mut self, name: &str, args: JsValue) -> Result<Self, JsValue> {
+    pub fn append_character_filter(&mut self, name: &str, args: JsValue) -> Result<(), JsValue> {
         let a = serde_wasm_bindgen::from_value::<Value>(args)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         self.inner.append_character_filter(name, &a);
 
-        Ok(self)
+        Ok(())
     }
 
-    pub fn append_token_filter(mut self, name: &str, args: JsValue) -> Result<Self, JsValue> {
+    pub fn append_token_filter(&mut self, name: &str, args: JsValue) -> Result<(), JsValue> {
         let a = serde_wasm_bindgen::from_value::<Value>(args)
             .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
         self.inner.append_token_filter(name, &a);
 
-        Ok(self)
+        Ok(())
     }
 }
 
@@ -105,16 +105,21 @@ pub struct Tokenizer {
 
 #[wasm_bindgen]
 impl Tokenizer {
-    pub fn tokenize(&self, input_text: &str) -> JsValue {
-        let mut tokens = self.inner.tokenize(input_text).unwrap();
+    pub fn tokenize(&self, input_text: &str) -> Result<JsValue, JsValue> {
+        let mut tokens = self
+            .inner
+            .tokenize(input_text)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
 
-        serde_wasm_bindgen::to_value(
+        let js_value = serde_wasm_bindgen::to_value(
             &tokens
                 .iter_mut()
                 .map(|token| token_to_json(token))
                 .collect::<Vec<_>>(),
         )
-        .unwrap()
+        .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        Ok(js_value)
     }
 }
 
@@ -122,8 +127,6 @@ impl Tokenizer {
 mod tests {
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test;
-
-
 
     #[cfg(target_arch = "wasm32")]
     #[wasm_bindgen_test]
@@ -137,7 +140,7 @@ mod tests {
 
         let tokenizer = builder.build().unwrap();
 
-        let t = tokenizer.tokenize("関西国際空港限定トートバッグ");
+        let t = tokenizer.tokenize("関西国際空港限定トートバッグ").unwrap();
         let tokens: Vec<Value> = serde_wasm_bindgen::from_value(t).unwrap();
 
         assert_eq!(tokens.len(), 3);
