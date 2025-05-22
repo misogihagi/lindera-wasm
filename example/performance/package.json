@@ -35,5 +35,9 @@
 		"onlyBuiltDependencies": [
 			"esbuild"
 		]
+	},
+	"dependencies": {
+		"kuromoji": "^0.1.2",
+		"lindera-wasm": "^0.42.3"
 	}
 }
